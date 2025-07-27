@@ -17,22 +17,23 @@
 #include "audio/mic_input.h"
 #include "audio/vowel_detector.h"
 #include "recognizer/vosk_recognizer.h"
-#include "audio/vowel_queue.h" // Добавить этот include
+#include "audio/vowel_queue.h" // Add this include for vowel queue functionality
 
 int main() {
     SDL_SetMainReady();
 
     #ifdef _WIN32
-        SetConsoleOutputCP(65001); // UTF-8
-        SetConsoleCP(65001);       // UTF-8
+        SetConsoleOutputCP(65001); // Set console output encoding to UTF-8
+        SetConsoleCP(65001);       // Set console input encoding to UTF-8
     #endif
 
-    // Initialize SDL
+    // Initialize SDL library
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
         return 1;
     }
 
+    // Initialize SDL_image library with support for PNG and JPG formats
     int imgFlags = IMG_INIT_PNG | IMG_INIT_JPG;
     if (!(IMG_Init(imgFlags) & imgFlags)) {
         std::cerr << "SDL_image could not initialize! SDL_image Error: " << IMG_GetError() << std::endl;
@@ -40,7 +41,7 @@ int main() {
         return 1;
     }
 
-    // Create a window
+    // Create the main application window
     SDL_Window* window = SDL_CreateWindow("Talking Dispenser", 
                                         SDL_WINDOWPOS_CENTERED, 
                                         SDL_WINDOWPOS_CENTERED, 
@@ -53,7 +54,7 @@ int main() {
         return 1;
     }
 
-    // Create a renderer
+    // Create a renderer for the window
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (!renderer) {
         std::cerr << "Failed to create renderer: " << SDL_GetError() << std::endl;
@@ -63,18 +64,20 @@ int main() {
         return 1;
     }
 
-    SDL_Texture* texture1 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/1.png"); // а, я
-    SDL_Texture* texture2 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/2.png"); // э, е
-    SDL_Texture* texture3 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/3.png"); // и
-    SDL_Texture* texture4 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/4.png"); // ы
-    SDL_Texture* texture5 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/5.png"); // о, ё
-    SDL_Texture* texture6 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/6.png"); // у, ю
-    SDL_Texture* texture7 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/7.png"); // тишина
+    // Load textures for vowel visualization
+    SDL_Texture* texture1 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/1.png"); // 'a', 'ya'
+    SDL_Texture* texture2 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/2.png"); // 'e', 'ye'
+    SDL_Texture* texture3 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/3.png"); // 'i'
+    SDL_Texture* texture4 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/4.png"); // 'y'
+    SDL_Texture* texture5 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/5.png"); // 'o', 'yo'
+    SDL_Texture* texture6 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/6.png"); // 'u', 'yu'
+    SDL_Texture* texture7 = IMG_LoadTexture(renderer, "C:/Users/Acer/Desktop/im/7.png"); // silence
 
+    // Check if all textures were loaded successfully
     if (!texture1 || !texture2 || !texture3 || !texture4 || !texture5 || !texture6 || !texture7) {
         std::cerr << "Failed to load textures: " << IMG_GetError() << std::endl;
         
-        // Проверим каждую текстуру отдельно
+        // Check each texture individually for debugging purposes
         if (!texture1) std::cerr << "Failed to load 1.jpg" << std::endl;
         if (!texture2) std::cerr << "Failed to load 2.jpg" << std::endl;
         if (!texture3) std::cerr << "Failed to load 3.jpg" << std::endl;
@@ -83,7 +86,7 @@ int main() {
         if (!texture6) std::cerr << "Failed to load 6.jpg" << std::endl;
         if (!texture7) std::cerr << "Failed to load 7.jpg" << std::endl;
 
-        // Clean up loaded textures
+        // Clean up loaded textures to avoid memory leaks
         if (texture1) SDL_DestroyTexture(texture1);
         if (texture2) SDL_DestroyTexture(texture2);
         if (texture3) SDL_DestroyTexture(texture3);
@@ -97,7 +100,7 @@ int main() {
         SDL_Quit();
         return 1;
     } else {
-        // Проверим размеры текстур для отладки
+        // Debugging: Check the dimensions of each texture
         int w, h;
         SDL_QueryTexture(texture1, nullptr, nullptr, &w, &h);
         std::cout << "Texture '1' loaded: " << w << "x" << h << std::endl;
@@ -115,12 +118,13 @@ int main() {
         std::cout << "Texture '7' loaded: " << w << "x" << h << std::endl;
     }
 
-    // Initialize audio input
+    // Initialize audio input for microphone recording
     MicInput micInput;
 
-    // Убираем старый код с SpeechRecognizer и заменяем на:
+    // Replace old SpeechRecognizer code with VowelDetector
     VowelDetector vowelDetector;
 
+    // Check if microphone input was initialized successfully
     if (!micInput.init()) {
         std::cerr << "Failed to initialize audio input" << std::endl;
         SDL_DestroyTexture(texture1);
@@ -137,10 +141,11 @@ int main() {
         return 1;
     }
 
-    // Initialize speech recognizer
+    // Initialize speech recognizer with the Vosk model
     SpeechRecognizer recognizer("C:/Users/Acer/Desktop/main/model/vosk-model-small-ru-0.22");
     VowelQueue vowelQueue;
     
+    // Check if the speech recognizer was initialized successfully
     if (!recognizer.isValid()) {
         std::cerr << "Failed to initialize speech recognizer" << std::endl;
         SDL_DestroyTexture(texture1);
@@ -157,14 +162,14 @@ int main() {
         return 1;
     }
 
-    // Start audio recording
+    // Start audio recording from the microphone
     micInput.start();
 
-    // Main loop
+    // Main application loop
     bool running = true;
-    SDL_Texture* currentTexture = texture7; // Устанавливаем текстуру 'a' по умолчанию
+    SDL_Texture* currentTexture = texture7; // Set the default texture to 'silence'
     auto lastRecognitionTime = std::chrono::steady_clock::now();
-    const auto DISPLAY_DURATION = std::chrono::milliseconds(2000); // Показывать текстуру 2 секунды
+    const auto DISPLAY_DURATION = std::chrono::milliseconds(2000); // Display each texture for 2 seconds
     
     std::cout << "Talking Dispenser started! Pronounce vowels 'a', 'o', 'i'..." << std::endl;
 
@@ -179,15 +184,16 @@ int main() {
             }
         }
 
-        // Clear screen
+        // Clear the screen with a black background
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
+        // Read audio data from the microphone
         std::vector<short> audioBuffer(2048);
         int samplesRead = micInput.read(audioBuffer.data(), static_cast<int>(audioBuffer.size()));
 
         if (samplesRead > 0) {
-            // Приоритет: прямое распознавание звуков
+            // Priority: Direct vowel detection from audio
             std::string detectedVowel = vowelDetector.detectVowel(audioBuffer, 16000);
             
             if (!detectedVowel.empty()) {
@@ -197,7 +203,7 @@ int main() {
                 lastRecognitionTime = std::chrono::steady_clock::now();
             }
             
-            // Дополнительно: распознавание через Vosk (только если прямое не сработало)
+            // Additionally: Vowel detection using Vosk (only if direct detection fails)
             static std::string lastRecognizedText = "";
             std::string recognizedText = recognizer.recognize(audioBuffer.data(), samplesRead);
             
@@ -216,12 +222,12 @@ int main() {
             }
         }
 
-        // Обновляем текстуру
+        // Update the displayed texture based on the detected vowel
         std::string currentVowel = vowelQueue.getCurrentVowel();
         if (!currentVowel.empty()) {
             SDL_Texture* newTexture = nullptr;
             
-            // Группируем гласные по типам губ
+            // Group vowels by lip shape
             if (currentVowel == "а" || currentVowel == "я") {
                 newTexture = texture1;
             } else if (currentVowel == "э" || currentVowel == "е") {
@@ -241,7 +247,7 @@ int main() {
                 std::cout << "Switched to vowel group for '" << currentVowel << "'" << std::endl;
             }
         } else {
-            // Возвращаемся к тишине
+            // Return to the 'silence' texture if no vowel is detected
             auto currentTime = std::chrono::steady_clock::now();
             if (currentTime - lastRecognitionTime > std::chrono::milliseconds(150)) {
                 if (currentTexture != texture7) {
@@ -251,13 +257,12 @@ int main() {
             }
         }
 
-
-        // Display current texture
+        // Display the current texture
         if (currentTexture) {
             SDL_RenderCopy(renderer, currentTexture, nullptr, nullptr);
         }
 
-        // Update screen
+        // Update the screen with the rendered content
         SDL_RenderPresent(renderer);
 
         // Small delay to prevent high CPU usage
@@ -267,6 +272,7 @@ int main() {
     // Stop audio recording
     micInput.stop();
 
+    // Clean up resources before exiting
     SDL_DestroyTexture(texture1);
     SDL_DestroyTexture(texture2);
     SDL_DestroyTexture(texture3);

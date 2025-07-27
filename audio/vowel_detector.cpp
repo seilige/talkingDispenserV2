@@ -7,19 +7,19 @@
 
 VowelDetector::VowelDetector() {}
 std::string VowelDetector::detectVowel(const std::vector<short>& audioData, int sampleRate) {
-    if (audioData.size() < 2048) return ""; // Увеличиваем минимальный размер
+    if (audioData.size() < 2048) return ""; // Increase the minimum size of the input data
     
-    // Применяем предварительную фильтрацию - берем только центральную часть
+    // Apply pre-filtering - take only the central part of the audio data
     size_t start = audioData.size() / 4;
     size_t end = audioData.size() * 3 / 4;
     std::vector<short> centeredData(audioData.begin() + start, audioData.begin() + end);
     
-    // Применяем оконную функцию
+    // Apply a windowing function to the data
     std::vector<double> windowedData = applyWindow(centeredData);
     
-    // Проверяем на тишину
+    // Check if the signal is silent
     if (windowedData.empty() || isSilence(windowedData)) {
-        // Не очищаем буфер сразу, а добавляем пустое значение
+        // Do not clear the buffer immediately, instead add an empty value
         recentDetections.push_back("");
         if (recentDetections.size() > maxRecentDetections) {
             recentDetections.erase(recentDetections.begin());
@@ -27,22 +27,22 @@ std::string VowelDetector::detectVowel(const std::vector<short>& audioData, int 
         return getConsistentVowel();
     }
     
-    // Вычисляем БПФ
+    // Perform FFT (Fast Fourier Transform) on the windowed data
     std::vector<std::complex<double>> fftData = fft(windowedData);
     
-    // Получаем спектр амплитуд
+    // Compute the magnitude spectrum from the FFT result
     std::vector<double> spectrum = getMagnitudeSpectrum(fftData);
     
-    // Классифицируем гласный звук
+    // Classify the vowel sound based on the spectrum
     std::string detected = classifyVowel(spectrum, sampleRate);
     
-    // Добавляем результат в буфер
+    // Add the result to the buffer of recent detections
     recentDetections.push_back(detected);
     if (recentDetections.size() > maxRecentDetections) {
         recentDetections.erase(recentDetections.begin());
     }
     
-    // Возвращаем консистентный результат
+    // Return a consistent vowel result based on recent detections
     return getConsistentVowel();
 }
 
@@ -51,15 +51,15 @@ std::vector<double> VowelDetector::applyWindow(const std::vector<short>& data) {
     double totalEnergy = 0;
     
     for (size_t i = 0; i < data.size(); i++) {
-        // Применяем окно Хэмминга
+        // Apply the Hamming window function
         double window = 0.54 - 0.46 * cos(2.0 * M_PI * i / (data.size() - 1));
         windowed[i] = data[i] * window;
         totalEnergy += windowed[i] * windowed[i];
     }
     
-    // Проверяем энергию сигнала
+    // Check the energy of the signal
     if (totalEnergy < minEnergyThreshold) {
-        return {}; // Слишком тихий сигнал
+        return {}; // Signal is too quiet
     }
     
     return windowed;
@@ -69,7 +69,7 @@ std::vector<std::complex<double>> VowelDetector::fft(const std::vector<double>& 
     size_t N = data.size();
     std::vector<std::complex<double>> result(N);
     
-    // Простая реализация ДПФ (для небольших размеров)
+    // Simple implementation of the Discrete Fourier Transform (DFT) for small sizes
     for (size_t k = 0; k < N; k++) {
         std::complex<double> sum(0, 0);
         for (size_t n = 0; n < N; n++) {
@@ -97,17 +97,17 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
     
     double freqStep = (double)sampleRate / (2.0 * spectrum.size());
     
-    // Находим все пики выше порога
+    // Find all peaks in the spectrum that are above a certain threshold
     std::vector<std::pair<double, double>> peaks;
     double maxAmplitude = *std::max_element(spectrum.begin(), spectrum.end());
-    double threshold = maxAmplitude * 0.05; // Снижаем порог до 5%
+    double threshold = maxAmplitude * 0.05; // Lower the threshold to 5%
 
     for (size_t i = 2; i < spectrum.size() - 2; i++) {
         if (spectrum[i] > spectrum[i-1] && spectrum[i] > spectrum[i+1] && 
             spectrum[i] > spectrum[i-2] && spectrum[i] > spectrum[i+2] &&
             spectrum[i] > threshold) {
             double freq = i * freqStep;
-            if (freq >= 150 && freq <= 4000) { // Расширяем диапазон
+            if (freq >= 150 && freq <= 4000) { // Expand the frequency range
                 peaks.push_back({freq, spectrum[i]});
             }
         }
@@ -115,14 +115,14 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
     
     if (peaks.empty()) return "";
     
-    // Сортируем по амплитуде
+    // Sort the peaks by amplitude in descending order
     std::sort(peaks.begin(), peaks.end(), 
               [](const auto& a, const auto& b) { return a.second > b.second; });
     
-    // Берем до 4 самых сильных пиков для анализа
+    // Take up to 4 strongest peaks for analysis
     int numPeaks = std::min(4, (int)peaks.size());
     
-    // Ищем F1 и F2
+    // Identify F1 and F2 formants
     double f1 = 0, f2 = 0;
     double f1_amp = 0, f2_amp = 0;
     
@@ -130,13 +130,13 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         double freq = peaks[i].first;
         double amp = peaks[i].second;
         
-        // F1 - ищем в диапазоне 200-1000 Гц
+        // F1 - search in the range of 200-1000 Hz
         if (freq >= 200 && freq <= 1000 && amp > f1_amp) {
             f1 = freq;
             f1_amp = amp;
         }
         
-        // F2 - ищем в диапазоне 800-3500 Гц
+        // F2 - search in the range of 800-3500 Hz
         if (freq >= 800 && freq <= 3500 && amp > f2_amp) {
             f2 = freq;
             f2_amp = amp;
@@ -147,12 +147,12 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
     
     std::cout << "F1=" << f1 << "Hz, F2=" << f2 << "Hz" << std::endl;
     
-    // Улучшенная классификация с весами для всех гласных
+    // Improved classification with weights for all vowels
     double score_a = 0, score_ya = 0, score_e = 0, score_ye = 0;
     double score_i = 0, score_y = 0, score_o = 0, score_yo = 0;
     double score_u = 0, score_yu = 0;
 
-    // Гласная "а": F1=700-850, F2=1100-1300
+    // Vowel "а": F1=700-850, F2=1100-1300
     if (f1 >= 650 && f1 <= 900 && f2 >= 1000 && f2 <= 1500) {
         score_a = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 700 && f1 <= 850 && f2 >= 1100 && f2 <= 1300) {
@@ -160,7 +160,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "я": похожа на "а" но с немного другими характеристиками
+    // Vowel "я": similar to "а" but with slightly different characteristics
     if (f1 >= 600 && f1 <= 850 && f2 >= 1200 && f2 <= 1600) {
         score_ya = (f1_amp + f2_amp) * 0.4;
         if (f1 >= 650 && f1 <= 800 && f2 >= 1300 && f2 <= 1500) {
@@ -168,7 +168,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "э": F1=500-650, F2=1400-1800
+    // Vowel "э": F1=500-650, F2=1400-1800
     if (f1 >= 450 && f1 <= 700 && f2 >= 1300 && f2 <= 2000) {
         score_e = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 500 && f1 <= 650 && f2 >= 1400 && f2 <= 1800) {
@@ -176,7 +176,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "е": похожа на "э"
+    // Vowel "е": similar to "э"
     if (f1 >= 400 && f1 <= 650 && f2 >= 1500 && f2 <= 2100) {
         score_ye = (f1_amp + f2_amp) * 0.4;
         if (f1 >= 450 && f1 <= 600 && f2 >= 1600 && f2 <= 2000) {
@@ -184,7 +184,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "и": F1=250-400, F2=2000-2800
+    // Vowel "и": F1=250-400, F2=2000-2800
     if (f1 >= 200 && f1 <= 450 && f2 >= 1800 && f2 <= 3000) {
         score_i = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 250 && f1 <= 400 && f2 >= 2000 && f2 <= 2800) {
@@ -192,7 +192,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "ы": F1=350-500, F2=1200-1600
+    // Vowel "ы": F1=350-500, F2=1200-1600
     if (f1 >= 300 && f1 <= 550 && f2 >= 1100 && f2 <= 1700) {
         score_y = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 350 && f1 <= 500 && f2 >= 1200 && f2 <= 1600) {
@@ -200,7 +200,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "о": F1=450-650, F2=850-1200  
+    // Vowel "о": F1=450-650, F2=850-1200  
     if (f1 >= 400 && f1 <= 700 && f2 >= 800 && f2 <= 1300) {
         score_o = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 450 && f1 <= 650 && f2 >= 850 && f2 <= 1200) {
@@ -208,7 +208,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "ё": похожа на "о" но немного выше
+    // Vowel "ё": similar to "о" but slightly higher
     if (f1 >= 400 && f1 <= 650 && f2 >= 900 && f2 <= 1400) {
         score_yo = (f1_amp + f2_amp) * 0.4;
         if (f1 >= 450 && f1 <= 600 && f2 >= 1000 && f2 <= 1300) {
@@ -216,7 +216,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "у": F1=300-450, F2=600-1000
+    // Vowel "у": F1=300-450, F2=600-1000
     if (f1 >= 250 && f1 <= 500 && f2 >= 550 && f2 <= 1100) {
         score_u = (f1_amp + f2_amp) * 0.5;
         if (f1 >= 300 && f1 <= 450 && f2 >= 600 && f2 <= 1000) {
@@ -224,7 +224,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Гласная "ю": похожа на "у" но с более высокой F2
+    // Vowel "ю": similar to "у" but with a higher F2
     if (f1 >= 250 && f1 <= 450 && f2 >= 800 && f2 <= 1300) {
         score_yu = (f1_amp + f2_amp) * 0.4;
         if (f1 >= 300 && f1 <= 400 && f2 >= 900 && f2 <= 1200) {
@@ -232,10 +232,10 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         }
     }
 
-    // Снижаем минимальный порог
+    // Lower the minimum threshold for classification
     double minScore = maxAmplitude * 0.02;
 
-    // Находим максимальный скор
+    // Find the vowel with the highest score
     double maxScore = std::max({score_a, score_ya, score_e, score_ye, score_i, 
                                score_y, score_o, score_yo, score_u, score_yu});
 
@@ -243,7 +243,7 @@ std::string VowelDetector::classifyVowel(const std::vector<double>& spectrum, in
         return "";
     }
 
-    // Возвращаем гласную с максимальным скором
+    // Return the vowel with the highest score
     if (maxScore == score_a) return "а";
     else if (maxScore == score_ya) return "я";
     else if (maxScore == score_e) return "э";
@@ -270,7 +270,7 @@ std::string VowelDetector::getConsistentVowel() {
         return "";
     }
     
-    // Подсчитываем только последние детекции
+    // Count only the most recent detections
     int count_a = 0, count_ya = 0, count_e = 0, count_ye = 0;
     int count_i = 0, count_y = 0, count_o = 0, count_yo = 0;
     int count_u = 0, count_yu = 0;
@@ -289,7 +289,7 @@ std::string VowelDetector::getConsistentVowel() {
         else if (recentDetections[i] == "ю") count_yu++;
     }
     
-    // Если есть хотя бы 1 детекция из последних 4 - возвращаем
+    // If there is at least one detection among the last 4, return it
     if (count_a >= 1) return "а";
     if (count_ya >= 1) return "я";
     if (count_e >= 1) return "э";

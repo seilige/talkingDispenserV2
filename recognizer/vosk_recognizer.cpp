@@ -8,10 +8,10 @@
 SpeechRecognizer::SpeechRecognizer(const std::string& modelPath)
     : model_(nullptr), recognizer_(nullptr), valid_(false) {
     
-    // Установка уровня логирования Vosk (0 = минимум логов)
+    // Set the logging level for Vosk (0 = minimal logs)
     vosk_set_log_level(-1);
     
-    // Загрузка модели
+    // Load the model from the specified path
     model_ = vosk_model_new(modelPath.c_str());
     if (!model_) {
         std::cerr << "Failed to load model Vosk from:" << modelPath << std::endl;
@@ -19,7 +19,7 @@ SpeechRecognizer::SpeechRecognizer(const std::string& modelPath)
         return;
     }
 
-    // Создание распознавателя
+    // Create the recognizer instance
     recognizer_ = vosk_recognizer_new(model_, SAMPLE_RATE);
     if (!recognizer_) {
         std::cerr << "Failed to create Vosk recognizer" << std::endl;
@@ -33,19 +33,23 @@ SpeechRecognizer::SpeechRecognizer(const std::string& modelPath)
 }
 
 SpeechRecognizer::~SpeechRecognizer() {
+    // Free the recognizer instance if it exists
     if (recognizer_) {
         vosk_recognizer_free(recognizer_);
     }
+    // Free the model instance if it exists
     if (model_) {
         vosk_model_free(model_);
     }
 }
 
 bool SpeechRecognizer::isValid() const {
+    // Check if the recognizer is valid and ready for use
     return valid_;
 }
 
 void SpeechRecognizer::reset() {
+    // Reset the recognizer to prepare it for new audio input
     if (recognizer_) {
         vosk_recognizer_reset(recognizer_);
     }
@@ -57,10 +61,10 @@ std::string SpeechRecognizer::recognize(const short* audio, int audioSize) {
         return "";
     }
 
-    // Преобразуем размер из количества семплов в байты
+    // Convert the size from the number of samples to the number of bytes
     int audioBytes = audioSize * sizeof(short);
     
-    // Подаём аудиоданные в распознаватель
+    // Feed the audio data into the recognizer
     int result = vosk_recognizer_accept_waveform(recognizer_, 
                                                reinterpret_cast<const char*>(audio), 
                                                audioBytes);
@@ -68,16 +72,16 @@ std::string SpeechRecognizer::recognize(const short* audio, int audioSize) {
     std::string recognizedText;
 
     if (result) {
-        // Финальный результат - сбрасываем распознаватель для нового текста
+        // Final result - reset the recognizer for new recognition
         const char* jsonResult = vosk_recognizer_result(recognizer_);
         recognizedText = parseJsonResult(jsonResult);
         if (!recognizedText.empty()) {
             std::cout << "Vosk final result: " << recognizedText << std::endl;
-            // Сбрасываем распознаватель для начала нового распознавания
+            // Reset the recognizer to start new recognition
             vosk_recognizer_reset(recognizer_);
         }
     } else {
-        // Частичный результат - работаем только с ним
+        // Partial result - process it only
         const char* jsonPartial = vosk_recognizer_partial_result(recognizer_);
         recognizedText = parseJsonResult(jsonPartial);
         if (!recognizedText.empty()) {
@@ -95,8 +99,8 @@ std::string SpeechRecognizer::parseJsonResult(const char* jsonResult) {
     
     std::string json(jsonResult);
     
-    // Простой парсинг JSON для извлечения текста
-    // Ищем поле "text": "..."
+    // Simple JSON parsing to extract the "text" field
+    // Look for the "text": "..." field
     size_t textPos = json.find("\"text\"");
     if (textPos == std::string::npos) {
         return "";
@@ -111,7 +115,7 @@ std::string SpeechRecognizer::parseJsonResult(const char* jsonResult) {
     if (startQuote == std::string::npos) {
         return "";
     }
-    startQuote++; // Пропускаем открывающую кавычку
+    startQuote++; // Skip the opening quote
     
     size_t endQuote = json.find("\"", startQuote);
     if (endQuote == std::string::npos) {
@@ -126,20 +130,21 @@ std::vector<std::string> SpeechRecognizer::extractVowels(const std::string& text
     
     std::vector<std::string> vowels;
     
-    // Проходим по каждому символу в тексте
+    // Iterate through each character in the text
     for (size_t i = 0; i < text.length(); i++) {
         std::string currentChar;
         
-        // Обработка UTF-8 символов (русские буквы занимают 2 байта)
+        // Handle UTF-8 characters (Russian letters occupy 2 bytes)
         if ((unsigned char)text[i] >= 0xC0) {
             if (i + 1 < text.length()) {
                 currentChar = text.substr(i, 2);
-                i++; // Пропускаем второй байт UTF-8
+                i++; // Skip the second byte of UTF-8
             }
         } else {
             currentChar = text[i];
         }
         
+        // Check for vowels in both Russian and English alphabets
         if (currentChar == "а" || currentChar == "А") {
             vowels.push_back("а");
         } else if (currentChar == "я" || currentChar == "Я") {
@@ -189,13 +194,13 @@ std::vector<std::string> SpeechRecognizer::extractVowels(const std::string& text
 std::vector<std::string> SpeechRecognizer::extractNewVowels(const std::string& newText, const std::string& previousText) {
     std::cout << "Current text: '" << newText << "'" << std::endl;
     
-    // Если текст пустой, ничего не возвращаем
+    // If the text is empty, return nothing
     if (newText.empty()) {
         return {};
     }
     
-    // Если новый текст короче предыдущего или полностью отличается, 
-    // значит началось новое распознавание - берем все гласные
+    // If the new text is shorter than the previous one or completely different,
+    // it means a new recognition session has started - extract all vowels
     if (newText.length() < previousText.length() || 
         previousText.empty() || 
         newText.substr(0, std::min(newText.length(), previousText.length())) != 
@@ -205,8 +210,8 @@ std::vector<std::string> SpeechRecognizer::extractNewVowels(const std::string& n
         return extractVowels(newText);
     }
     
-    // Если новый текст длиннее и начинается с предыдущего,
-    // извлекаем только новую часть
+    // If the new text is longer and starts with the previous one,
+    // extract vowels only from the new part
     if (newText.length() > previousText.length() && 
         newText.substr(0, previousText.length()) == previousText) {
         
@@ -215,6 +220,6 @@ std::vector<std::string> SpeechRecognizer::extractNewVowels(const std::string& n
         return extractVowels(newPart);
     }
     
-    // В остальных случаях ничего не добавляем
+    // In all other cases, do not add anything
     return {};
 }
