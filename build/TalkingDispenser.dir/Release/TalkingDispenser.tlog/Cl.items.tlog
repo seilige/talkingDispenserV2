@@ -1,0 +1,5 @@
+C:\Users\Acer\Desktop\main\main.cpp;C:\Users\Acer\Desktop\main\build\TalkingDispenser.dir\Release\main.obj
+C:\Users\Acer\Desktop\main\audio\mic_input.cpp;C:\Users\Acer\Desktop\main\build\TalkingDispenser.dir\Release\mic_input.obj
+C:\Users\Acer\Desktop\main\recognizer\vosk_recognizer.cpp;C:\Users\Acer\Desktop\main\build\TalkingDispenser.dir\Release\vosk_recognizer.obj
+C:\Users\Acer\Desktop\main\audio\vowel_detector.cpp;C:\Users\Acer\Desktop\main\build\TalkingDispenser.dir\Release\vowel_detector.obj
+C:\Users\Acer\Desktop\main\audio\vowel_queue.cpp;C:\Users\Acer\Desktop\main\build\TalkingDispenser.dir\Release\vowel_queue.obj
